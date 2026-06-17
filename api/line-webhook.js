@@ -1,9 +1,4 @@
 import crypto from "crypto";
-import { GoogleGenAI } from "@google/genai";
-
-const ai = new GoogleGenAI({
-  apiKey: process.env.Gemini_API_Key,
-});
 
 function verifyLineSignature(body, signature) {
   const hash = crypto
@@ -31,14 +26,15 @@ async function replyLine(replyToken, text) {
 function parseCSV(text) {
   const lines = text.trim().split("\n");
 
-  return lines.slice(1).map((line) => {
-    const cols = line.split(",");
-
-    return {
-      question: (cols[1] || "").replaceAll('"', "").trim(),
-      answer: (cols.slice(2).join(",") || "").replaceAll('"', "").trim(),
-    };
-  }).filter(item => item.question && item.answer);
+  return lines.slice(1)
+    .map((line) => {
+      const cols = line.split(",");
+      return {
+        question: (cols[1] || "").replaceAll('"', "").trim(),
+        answer: (cols.slice(2).join(",") || "").replaceAll('"', "").trim(),
+      };
+    })
+    .filter((item) => item.question && item.answer);
 }
 
 async function getFAQFromSheet() {
@@ -66,12 +62,10 @@ async function askGemini(userText, faqList) {
     .map((item) => `คำถาม: ${item.question}\nคำตอบ: ${item.answer}`)
     .join("\n\n");
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: `
+  const prompt = `
 คุณคือแอดมิน LINE OA
 ตอบภาษาไทย สุภาพ กระชับ
-ให้ตอบจากข้อมูล FAQ เท่านั้น
+ตอบจากข้อมูล FAQ เท่านั้น
 ห้ามแต่งข้อมูลเอง
 
 ถ้าไม่มีข้อมูล ให้ตอบว่า:
@@ -82,10 +76,30 @@ ${faqText}
 
 ลูกค้าถาม:
 ${userText}
-`,
+`;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.Gemini_API_Key}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [{ text: prompt }],
+        },
+      ],
+    }),
   });
 
-  return response.text || "ขออภัยค่ะ ระบบยังตอบไม่ได้ในตอนนี้";
+  const data = await res.json();
+
+  return (
+    data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+    "ขออภัยค่ะ ระบบยังตอบไม่ได้ในตอนนี้"
+  );
 }
 
 export default async function handler(req, res) {
@@ -93,6 +107,12 @@ export default async function handler(req, res) {
     return res.status(200).json({
       status: "ok",
       message: "LINE webhook is working",
+      env: {
+        hasGemini: !!process.env.Gemini_API_Key,
+        hasLineSecret: !!process.env.Channel_secret,
+        hasLineToken: !!process.env.Line_Channel_access_token,
+        hasSheet: !!process.env.SHEET_CSV_URL,
+      },
     });
   }
 
