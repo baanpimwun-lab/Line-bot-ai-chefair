@@ -104,17 +104,21 @@ ${userText}
 
 export default async function handler(req, res) {
   if (req.method === "GET") {
-    return res.status(200).json({
-      status: "ok",
-      message: "LINE webhook is working",
-      env: {
-        hasGemini: !!process.env.Gemini_API_Key,
-        hasLineSecret: !!process.env.Channel_secret,
-        hasLineToken: !!process.env.Line_Channel_access_token,
-        hasSheet: !!process.env.SHEET_CSV_URL,
-      },
-    });
-  }
+  const faqList = await getFAQFromSheet();
+
+  return res.status(200).json({
+    status: "ok",
+    message: "LINE webhook is working",
+    faqCount: faqList.length,
+    sampleFAQ: faqList.slice(0, 3),
+    env: {
+      hasGemini: !!process.env.Gemini_API_Key,
+      hasLineSecret: !!process.env.Channel_secret,
+      hasLineToken: !!process.env.Line_Channel_access_token,
+      hasSheet: !!process.env.SHEET_CSV_URL,
+    },
+  });
+}
 
   if (req.method !== "POST") {
     return res.status(405).send("Method not allowed");
