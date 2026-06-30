@@ -1,7 +1,5 @@
-import { WebhookParser, messagingApi } from "@line/bot-sdk";
+import { validateSignature, messagingApi } from "@line/bot-sdk";
 import { GoogleGenAI } from "@google/genai";
-
-const parser = new WebhookParser({ channelSecret: process.env.LINE_CHANNEL_SECRET });
 
 const client = new messagingApi.MessagingApiClient({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
@@ -121,12 +119,13 @@ export default async function handler(req, res) {
   for await (const chunk of req) chunks.push(chunk);
   const rawBody = Buffer.concat(chunks);
 
-  let events;
-  try {
-    events = await parser.parseRequest(rawBody, req.headers);
-  } catch {
+  const signature = req.headers["x-line-signature"];
+  if (!signature || !validateSignature(rawBody, process.env.LINE_CHANNEL_SECRET, signature)) {
     return res.status(401).send("Unauthorized");
   }
+
+  const body = JSON.parse(rawBody.toString("utf8"));
+  const events = body.events || [];
 
   await Promise.all(events.map(handleEvent));
   return res.status(200).send("OK");
