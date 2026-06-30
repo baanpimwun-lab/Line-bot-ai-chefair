@@ -124,9 +124,13 @@ export default async function handler(req, res) {
     return res.status(401).send("Unauthorized");
   }
 
-  const body = JSON.parse(rawBody.toString("utf8"));
-  const events = body.events || [];
+  try {
+    const body = JSON.parse(rawBody.toString("utf8"));
+    const events = body.events || [];
+    await Promise.all(events.map(handleEvent));
+  } catch (err) {
+    console.error("[line-webhook] error:", err?.message ?? err);
+  }
 
-  await Promise.all(events.map(handleEvent));
   return res.status(200).send("OK");
 }
