@@ -108,7 +108,14 @@ async function handleEvent(event) {
 
 export default async function handler(req, res) {
   if (req.method === "GET") {
-    return res.status(200).json({ status: "ok", message: "ChefAir LINE Bot is running" });
+    return res.status(200).json({
+      status: "ok",
+      env: {
+        LINE_CHANNEL_SECRET: !!process.env.LINE_CHANNEL_SECRET,
+        LINE_CHANNEL_ACCESS_TOKEN: !!process.env.LINE_CHANNEL_ACCESS_TOKEN,
+        GEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
+      },
+    });
   }
 
   if (req.method !== "POST") {
