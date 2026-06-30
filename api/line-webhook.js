@@ -119,12 +119,12 @@ export default async function handler(req, res) {
   for await (const chunk of req) chunks.push(chunk);
   const rawBody = Buffer.concat(chunks);
 
-  const signature = req.headers["x-line-signature"];
-  if (!signature || !validateSignature(rawBody, process.env.LINE_CHANNEL_SECRET, signature)) {
-    return res.status(401).send("Unauthorized");
-  }
-
   try {
+    const signature = req.headers["x-line-signature"];
+    if (!signature || !validateSignature(rawBody, process.env.LINE_CHANNEL_SECRET, signature)) {
+      return res.status(401).send("Unauthorized");
+    }
+
     const body = JSON.parse(rawBody.toString("utf8"));
     const events = body.events || [];
     await Promise.all(events.map(handleEvent));
