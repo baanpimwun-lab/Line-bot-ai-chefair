@@ -1,6 +1,7 @@
 {
   "type": "module",
   "dependencies": {
-    "@google/genai": "^1.0.0"
+    "@google/genai": "^1.0.0",
+    "@line/bot-sdk": "^9.0.0"
   }
 }

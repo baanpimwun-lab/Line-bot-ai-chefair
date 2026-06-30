@@ -1,226 +1,133 @@
-import crypto from "crypto";
+import { WebhookParser, messagingApi } from "@line/bot-sdk";
+import { GoogleGenAI } from "@google/genai";
 
-function verifyLineSignature(body, signature) {
-  const hash = crypto
-    .createHmac("sha256", process.env.Channel_secret)
-    .update(body)
-    .digest("base64");
+const parser = new WebhookParser({ channelSecret: process.env.LINE_CHANNEL_SECRET });
 
-  return hash === signature;
-}
+const client = new messagingApi.MessagingApiClient({
+  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
+});
 
-async function replyLine(replyToken, text) {
-  await fetch("https://api.line.me/v2/bot/message/reply", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.Line_Channel_access_token}`,
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+const SYSTEM_PROMPT = `คุณคือแอดมิน LINE OA ของแบรนด์ Chef Air Kitchen / ใบเพรา
+หน้าที่: ตอบคำถามลูกค้า แนะนำสินค้า และช่วยปิดการขายสินค้าบริโภคของเชฟแอร์
+
+== น้ำเสียงและการตอบ ==
+- สุภาพ เป็นกันเอง ใช้คำว่า "ค่ะ" ทุกครั้ง
+- ตอบกระชับ เข้าใจง่าย ให้ข้อมูลครบถ้วน
+- แนะนำสินค้าให้เหมาะกับความต้องการลูกค้า
+- ถ้าลูกค้าสนใจ ส่งลิงก์สั่งซื้อทันที
+- ห้ามแต่งข้อมูลเอง ถ้าไม่มีข้อมูล ตอบว่า "ขออนุญาตให้แอดมินตรวจสอบเพิ่มเติมให้นะคะ"
+
+== สินค้าและราคา ==
+
+[1] ซอสผัดกะเพราใบเพรา แบบขวด 600 ml
+- ผลิตจากโรงงาน ISO ผ่านมาตรฐาน อย.
+- ผัดได้ ~22 จาน/ขวด
+- ไม่มีพริก กระเทียม ใบกะเพรา (ลูกค้าปรับเองได้ตามชอบ)
+- ฮาลาล ทุกศาสนาทานได้
+- เหมาะ: ทำกินที่บ้าน หรือร้านที่ต้องการทดลองใช้
+ราคา:
+  1 ขวด = 119 บาท
+  2 ขวด = 238 บาท (ฟรีค่าส่ง)
+  3 ขวด = 355 บาท (ฟรีค่าส่ง)
+  6 ขวด = 705 บาท (ฟรีค่าส่ง)
+  12 ขวด = 1,250 บาท (ฟรีค่าส่ง)
+
+[2] ซอสผัดกะเพราใบเพรา แบบแกลลอน 3,800 ml
+- เหมาะ: ร้านอาหาร ร้านตามสั่ง ร้านเดลิเวอรี่ หรือใช้ปริมาณมาก
+- โปรส่วนลด 10% ช่องทางนี้เท่านั้น:
+  1 แกล = 431 บาท (ปกติ 479 บาท)
+  3 แกล = 1,251 บาท (ปกติ 1,390 บาท)
+  6 แกล = 2,421 บาท (ปกติ 2,690 บาท)
+
+[3] น้ำปลาร้าเชฟแอร์ แบบขวด 420 g
+- ปลาร้าต้มสุกปรุงรสสูตรพิเศษ
+- ผลิตจากโรงงานมาตรฐานส่งออก อย. เลขที่ 60-2-02562-6-0069
+- รสนัว กลมกล่อม ไม่เค็มโดด กลิ่นหอมนัว ไม่ฉุน ส้มตำสีสวย
+- เหมาะ: ส้มตำ ยำ น้ำพริก แกงอีสาน
+- เมนูแนะนำ: ตำปูปลาร้า ตำลาว ตำซั่ว ตำหมูยอ ตำกุ้งสด ตำแตง ยำแซลมอน ยำหมูยอ น้ำพริก แกงหน่อไม้ แกงเห็ด แกงอ่อม
+โปรลดแรง 20%:
+  1 ขวด = 39 บาท (ปกติ 49 บาท)
+  แพ็ค 3 ขวด = 117 บาท (ปกติ 147 บาท)
+  แพ็ค 6 ขวด = 219 บาท (ปกติ 279 บาท)
+  แพ็คโหล 12 ขวด = 399 บาท (ปกติ 490 บาท)
+
+[4] คอร์สส้มตำเงินล้าน by เชฟแอร์
+- เหมาะสำหรับคนอยากทำส้มตำให้อร่อยเป๊ะ หรืออยากต่อยอดเปิดร้าน
+- สอน: พื้นฐานร้านส้มตำ เลือกวัตถุดิบ น้ำเบส เทคนิคตำ เมนูขายดี ระบบร้าน คำนวณต้นทุนกำไร
+- มีส่วนลดพิเศษ 100 บาท ผ่านลิงก์นี้เท่านั้น
+
+== ลิงก์สั่งซื้อ ==
+- ซอสผัดกะเพราใบเพรา และน้ำปลาร้าเชฟแอร์: https://m.me/ChefAirKitchen?ref=SA01
+- คอร์สส้มตำเงินล้าน (ลด 100 บาท): https://m.me/Baanpimwun?ref=w54318216
+
+== กติกาสำคัญ ==
+1. ลูกค้าถามซอสผัดกะเพรา หรือน้ำปลาร้า → ส่งลิงก์: https://m.me/ChefAirKitchen?ref=SA01
+2. ลูกค้าถามคอร์สส้มตำเงินล้าน → ส่งลิงก์: https://m.me/Baanpimwun?ref=w54318216
+3. ลูกค้าพิมพ์ว่า "สนใจ" "สั่งซื้อ" "เอา" "ขอรับ" "ซื้อยังไง" "ขอลิงก์" → ตอบข้อมูลสินค้าพร้อมส่งลิงก์ทันที
+4. ค่าส่งซอสกะเพรา: ซื้อ 2 ขวดขึ้นไปฟรีค่าส่ง
+5. ค่าส่งน้ำปลาร้า: ถามจำนวนและจังหวัดปลายทางก่อน
+6. ลูกค้าถามนอกเหนือข้อมูลที่มี → "ขออนุญาตให้แอดมินตรวจสอบเพิ่มเติมให้นะคะ"`;
+
+const WELCOME_MESSAGE = `สวัสดีค่ะ ยินดีต้อนรับค่ะ 😊 สนใจสินค้าแบบไหนคะ
+1. ซอสผัดกะเพราใบเพรา
+2. น้ำปลาร้า Chef Air
+3. คอร์สส้มตำเงินล้าน by เชฟแอร์
+พิมพ์ชื่อสินค้าที่สนใจได้เลยค่ะ เดี๋ยวแอดมินแนะนำให้ค่ะ`;
+
+async function askGemini(userMessage) {
+  const response = await ai.models.generateContent({
+    model: "gemini-2.0-flash",
+    contents: userMessage,
+    config: {
+      systemInstruction: SYSTEM_PROMPT,
+      maxOutputTokens: 1000,
     },
-    body: JSON.stringify({
-      replyToken,
-      messages: [{ type: "text", text }],
-    }),
   });
+  return response.text;
 }
 
-function parseCSVLine(line) {
-  const result = [];
-  let current = "";
-  let insideQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    const next = line[i + 1];
-
-    if (char === '"' && next === '"') {
-      current += '"';
-      i++;
-    } else if (char === '"') {
-      insideQuotes = !insideQuotes;
-    } else if (char === "," && !insideQuotes) {
-      result.push(current);
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-
-  result.push(current);
-  return result;
-}
-
-function parseCSV(text) {
-  const lines = text.trim().split(/\r?\n/);
-
-  return lines
-    .slice(1)
-    .map((line) => {
-      const cols = parseCSVLine(line);
-
-      return {
-        question: (cols[1] || "").trim(),
-        answer: (cols[2] || "").trim(),
-      };
-    })
-    .filter((item) => item.question && item.answer);
-}
-
-async function getFAQFromSheet() {
-  const res = await fetch(process.env.SHEET_CSV_URL);
-  const text = await res.text();
-  return parseCSV(text);
-}
-
-function normalizeThai(text) {
-  return String(text || "")
-    .toLowerCase()
-    .replace(/\s+/g, "")
-    .replace(/[?？!！.。,，:：;；"'“”‘’()（）\[\]{}]/g, "")
-    .replace(/ครับ|ค่ะ|คะ|จ้า|จ๊ะ|หน่อย|หน่อยค่ะ|หน่อยครับ/g, "")
-    .trim();
-}
-
-function scoreSimilarity(userText, question) {
-  const user = normalizeThai(userText);
-  const q = normalizeThai(question);
-
-  if (!user || !q) return 0;
-  if (user === q) return 100;
-  if (user.includes(q) || q.includes(user)) return 90;
-
-  let score = 0;
-
-  for (const char of q) {
-    if (user.includes(char)) {
-      score++;
-    }
-  }
-
-  return Math.round((score / q.length) * 100);
-}
-
-function findAnswer(userText, faqList) {
-  let bestMatch = null;
-  let bestScore = 0;
-
-  for (const item of faqList) {
-    const score = scoreSimilarity(userText, item.question);
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestMatch = item;
-    }
-  }
-
-  if (bestScore >= 45) {
-    return bestMatch.answer;
-  }
-
-  return null;
-}
-
-async function askGemini(userText, faqList) {
-  const faqText = faqList
-    .map((item, index) => `${index + 1}. คำถาม: ${item.question}\nคำตอบ: ${item.answer}`)
-    .join("\n\n");
-
-  const prompt = `
-คุณคือระบบเลือกคำตอบจาก FAQ
-
-หน้าที่ของคุณ:
-- อ่านคำถามลูกค้า
-- เลือกคำตอบที่ใกล้เคียงที่สุดจาก FAQ
-- ตอบเฉพาะ "คำตอบ" จาก FAQ เท่านั้น
-- ห้ามแต่งข้อมูลใหม่
-- ห้ามอธิบายเพิ่ม
-
-ถ้าไม่มี FAQ ที่เกี่ยวข้อง ให้ตอบว่า:
-ขออภัยค่ะ เรื่องนี้ยังไม่มีข้อมูลในระบบ เดี๋ยวทีมงานติดต่อกลับนะคะ
-
-FAQ:
-${faqText}
-
-คำถามลูกค้า:
-${userText}
-`;
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.Gemini_API_Key}`;
-
-  try {
-    const geminiRes = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: prompt }],
-          },
-        ],
-      }),
+async function handleEvent(event) {
+  if (event.type === "follow") {
+    await client.replyMessage({
+      replyToken: event.replyToken,
+      messages: [{ type: "text", text: WELCOME_MESSAGE }],
     });
-
-    const data = await geminiRes.json();
-
-    return (
-      data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
-      "ขออภัยค่ะ ระบบยังตอบไม่ได้ในตอนนี้"
-    );
-  } catch (error) {
-    return "ขออภัยค่ะ ระบบยังตอบไม่ได้ในตอนนี้";
+    return;
   }
+
+  if (event.type !== "message" || event.message.type !== "text") return;
+
+  const userText = event.message.text;
+  const answer = await askGemini(userText);
+
+  await client.replyMessage({
+    replyToken: event.replyToken,
+    messages: [{ type: "text", text: answer.slice(0, 4900) }],
+  });
 }
 
 export default async function handler(req, res) {
   if (req.method === "GET") {
-    const faqList = await getFAQFromSheet();
-
-    return res.status(200).json({
-      status: "ok",
-      message: "LINE webhook is working",
-      faqCount: faqList.length,
-      sampleFAQ: faqList.slice(0, 5),
-      env: {
-        hasGemini: !!process.env.Gemini_API_Key,
-        hasLineSecret: !!process.env.Channel_secret,
-        hasLineToken: !!process.env.Line_Channel_access_token,
-        hasSheet: !!process.env.SHEET_CSV_URL,
-      },
-    });
+    return res.status(200).json({ status: "ok", message: "ChefAir LINE Bot is running" });
   }
 
   if (req.method !== "POST") {
-    return res.status(405).send("Method not allowed");
+    return res.status(405).send("Method Not Allowed");
   }
 
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
+  const rawBody = Buffer.concat(chunks);
 
-  const rawBody = Buffer.concat(chunks).toString("utf8");
-  const signature = req.headers["x-line-signature"];
-
-  if (!verifyLineSignature(rawBody, signature)) {
-    return res.status(401).send("Invalid signature");
+  let events;
+  try {
+    events = await parser.parseRequest(rawBody, req.headers);
+  } catch {
+    return res.status(401).send("Unauthorized");
   }
 
-  const body = JSON.parse(rawBody);
-  const faqList = await getFAQFromSheet();
-
-  for (const event of body.events || []) {
-    if (event.type !== "message") continue;
-    if (event.message.type !== "text") continue;
-
-    const userText = event.message.text;
-
-    let answer = findAnswer(userText, faqList);
-
-    if (!answer) {
-      answer = await askGemini(userText, faqList);
-    }
-
-    await replyLine(event.replyToken, answer.slice(0, 4900));
-  }
-
+  await Promise.all(events.map(handleEvent));
   return res.status(200).send("OK");
 }
