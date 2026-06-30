@@ -1,11 +1,11 @@
 import { validateSignature, messagingApi } from "@line/bot-sdk";
-import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
 
 const client = new messagingApi.MessagingApiClient({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
 });
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const SYSTEM_PROMPT = `คุณคือแอดมิน LINE OA ของแบรนด์ Chef Air Kitchen / ใบเพรา
 หน้าที่: ตอบคำถามลูกค้า แนะนำสินค้า และช่วยปิดการขายสินค้าบริโภคของเชฟแอร์
@@ -74,16 +74,16 @@ const WELCOME_MESSAGE = `สวัสดีค่ะ ยินดีต้อน
 3. คอร์สส้มตำเงินล้าน by เชฟแอร์
 พิมพ์ชื่อสินค้าที่สนใจได้เลยค่ะ เดี๋ยวแอดมินแนะนำให้ค่ะ`;
 
-async function askGemini(userMessage) {
-  const response = await ai.models.generateContent({
-    model: "gemini-2.0-flash",
-    contents: userMessage,
-    config: {
-      systemInstruction: SYSTEM_PROMPT,
-      maxOutputTokens: 1000,
-    },
+async function askOpenAI(userMessage) {
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: userMessage },
+    ],
+    max_tokens: 1000,
   });
-  return response.text;
+  return response.choices[0].message.content;
 }
 
 async function handleEvent(event) {
@@ -98,7 +98,7 @@ async function handleEvent(event) {
   if (event.type !== "message" || event.message.type !== "text") return;
 
   const userText = event.message.text;
-  const answer = await askGemini(userText);
+  const answer = await askOpenAI(userText);
 
   await client.replyMessage({
     replyToken: event.replyToken,
@@ -113,7 +113,7 @@ export default async function handler(req, res) {
       env: {
         LINE_CHANNEL_SECRET: !!process.env.LINE_CHANNEL_SECRET,
         LINE_CHANNEL_ACCESS_TOKEN: !!process.env.LINE_CHANNEL_ACCESS_TOKEN,
-        GEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
+        OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
       },
     });
   }
